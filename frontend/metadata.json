@@ -1,0 +1,5 @@
+{
+  "name": "InstaSave",
+  "description": "An intelligent, high-speed Instagram media analyzer and downloader interface. Detects profiles, reels, and audio automatically.",
+  "requestFramePermissions": []
+}
