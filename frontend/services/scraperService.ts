@@ -6,7 +6,8 @@ const COBALT_INSTANCES = [
     "https://api.cobalt.kwiatekmiki.pl",
     "https://cobalt.wuk.sh",
     "https://co.wuk.sh",
-    "https://dl.khub.ky"
+    "https://dl.khub.ky",
+    "https://api.server.cobalt.tools"
 ];
 
 export const scrapeInstagram = async (url: string): Promise<MediaData> => {
@@ -24,41 +25,47 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
 
     // Try each instance until one works
     for (const base of COBALT_INSTANCES) {
-        try {
-            console.log(`Trying Cobalt instance: ${base}`);
+        // For each instance, try both v10 (root) and v7 (/api/json) endpoints
+        const endpoints = [`${base}/`, `${base}/api/json`];
 
-            // Try v10 endpoint (root)
-            const response = await fetch(`${base}/`, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ url: url })
-            });
+        for (const endpoint of endpoints) {
+            try {
+                console.log(`Trying Cobalt: ${endpoint}`);
 
-            const data = await response.json();
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
 
-            if (data.status === 'error' || data.error) {
-                // If it's a specific error from the API (e.g. valid JSON but error status), record it
-                // but don't stop unless we want to? Usually we should try next instance if it's a server error.
-                // If it's a content error (private video), all instances will likely fail. 
-                // But let's assume it might be instance-specific (blocked IP).
-                throw new Error(data.text || "Extraction failed");
+                // Check content type to ensure it's JSON
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    continue; // Skip non-JSON responses (404 pages etc)
+                }
+
+                const data = await response.json();
+
+                if (data.status === 'error' || data.error) {
+                    throw new Error(data.text || "Extraction failed");
+                }
+
+                // If we got here, success!
+                return transformCobaltResponse(data, url);
+
+            } catch (e: any) {
+                // console.warn(`Endpoint ${endpoint} failed:`, e.message);
+                lastError = e;
+                // Continue to next endpoint/instance
             }
-
-            // If we got here, success!
-            return transformCobaltResponse(data, url);
-
-        } catch (e: any) {
-            console.warn(`Instance ${base} failed:`, e.message);
-            lastError = e;
-            // Continue to next instance
         }
     }
 
     // If all failed
-    throw new Error(lastError?.message || "Failed to fetch media. All servers are busy or the link is private.");
+    throw new Error("Failed to fetch media. Please try again later. (All servers busy)");
 };
 
 const transformCobaltResponse = (data: any, originalUrl: string): MediaData => {
