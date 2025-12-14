@@ -6,7 +6,7 @@ interface ResultCardProps {
     data: MediaData;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 
 const ResultCard: React.FC<ResultCardProps> = ({ data }) => {
 
@@ -16,22 +16,23 @@ const ResultCard: React.FC<ResultCardProps> = ({ data }) => {
         try {
             setDownloading(prev => ({ ...prev, [index]: true }));
 
-            let ext = 'jpg';
+            let ext = 'mp4';
             let targetUrl = mediaUrlOverride || data.mediaUrl;
 
-            // Determine extension
-            if (targetUrl.includes('.mp4')) ext = 'mp4';
-            else if (data.type === MediaType.REEL) ext = 'mp4';
+            // Simple extension guessing
+            if (targetUrl.includes('.jpg') || targetUrl.includes('.jpeg')) ext = 'jpg';
+            else if (targetUrl.includes('.png')) ext = 'png';
+            else if (targetUrl.includes('.webp')) ext = 'webp';
+            else if (data.type === MediaType.IMAGE) ext = 'jpg';
             else if (data.type === MediaType.AUDIO) ext = 'mp3';
 
             const suffix = index !== undefined ? `_${index + 1}` : '';
-            const filename = `malpha_${data.username || 'user'}_${data.id || Date.now()}${suffix}.${ext}`;
+            // Clean filename
+            const cleanUser = (data.username || 'user').replace(/[^a-zA-Z0-9]/g, '');
+            const filename = `malpha_${cleanUser}_${data.id || Date.now()}${suffix}.${ext}`;
 
-            // Generate proxy URL
-            const downloadUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(targetUrl)}&filename=${encodeURIComponent(filename)}`;
-
-            // Use fetch to get the blob (handles errors better)
-            const response = await fetch(downloadUrl);
+            // Direct download using fetch (since Cobalt supports CORS)
+            const response = await fetch(targetUrl);
             if (!response.ok) throw new Error('Download failed');
 
             const blob = await response.blob();
@@ -44,9 +45,11 @@ const ResultCard: React.FC<ResultCardProps> = ({ data }) => {
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(blobUrl);
+
         } catch (error) {
             console.error('Download error:', error);
-            alert('Download failed. Please try again.');
+            // Fallback: Just open the link
+            window.open(mediaUrlOverride || data.mediaUrl, '_blank');
         } finally {
             setDownloading(prev => ({ ...prev, [index]: false }));
         }
@@ -78,14 +81,15 @@ const ResultCard: React.FC<ResultCardProps> = ({ data }) => {
             data.type === 'VIDEO' ||
             (data.sources && data.sources[index]?.title && data.sources[index].title.toLowerCase().includes('video'));
 
-        const proxyUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(url)}&inline=true`;
+        // Direct URL usage
+        const directUrl = url;
 
         return (
             <div key={index} className="flex flex-col bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md hover:shadow-xl transition-all duration-300 w-fit mx-auto max-w-full min-w-[320px]">
                 <div className="relative group flex items-center justify-center bg-slate-50 overflow-hidden">
                     {isItemVideo ? (
                         <video
-                            src={proxyUrl}
+                            src={directUrl}
                             controls
                             className="block max-h-[70vh] w-auto max-w-full object-contain"
                             playsInline
@@ -99,11 +103,11 @@ const ResultCard: React.FC<ResultCardProps> = ({ data }) => {
                             <div className="relative w-32 h-32 rounded-full border-4 border-slate-700 shadow-2xl overflow-hidden animate-[spin_10s_linear_infinite] mb-6">
                                 <img src={data.thumbnailUrl} alt="Album Art" className="w-full h-full object-cover" />
                             </div>
-                            <audio controls src={proxyUrl} className="w-full max-w-[80%]" crossOrigin="anonymous"></audio>
+                            <audio controls src={directUrl} className="w-full max-w-[80%]" crossOrigin="anonymous"></audio>
                         </div>
                     ) : (
                         <img
-                            src={proxyUrl}
+                            src={directUrl}
                             alt={`Slide ${index + 1}`}
                             className="block max-h-[70vh] w-auto max-w-full object-contain"
                         />

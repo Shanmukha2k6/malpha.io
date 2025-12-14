@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { SearchIcon, PasteIcon, FilmIcon, MusicIcon, UserIcon, InstagramIcon } from './Icons';
+import { PasteIcon, InstagramIcon } from './Icons';
 
 interface InputAreaProps {
   onAnalyze: (url: string) => void;
@@ -182,25 +182,11 @@ const InputArea: React.FC<InputAreaProps> = ({
         </p>
       </div>
 
-      {platformName === 'Instagram' && (
-        <div className="mt-12 flex flex-wrap justify-center gap-4">
-          <FeatureBadge icon={<FilmIcon className="w-4 h-4" />} label="Reels" color="text-insta-purple bg-insta-purple/10" />
-          <FeatureBadge icon={<MusicIcon className="w-4 h-4" />} label="Audio" color="text-insta-mid bg-insta-mid/10" />
-          <FeatureBadge icon={<UserIcon className="w-4 h-4" />} label="Profiles" color="text-insta-blue bg-insta-blue/10" />
-          <FeatureBadge icon={<SearchIcon className="w-4 h-4" />} label="Stories" color="text-insta-start bg-insta-start/10" />
-        </div>
-      )}
+
     </div>
   );
 };
 
-const FeatureBadge = ({ icon, label, color }: { icon: React.ReactNode, label: string, color: string }) => (
-  <div className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all group cursor-default select-none shadow-sm">
-    <div className={`p-1.5 rounded-full ${color} group-hover:scale-110 transition-transform`}>
-      {icon}
-    </div>
-    <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-900">{label}</span>
-  </div>
-)
+
 
 export default InputArea;
