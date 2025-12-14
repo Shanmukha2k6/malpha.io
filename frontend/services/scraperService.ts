@@ -25,7 +25,6 @@ const cleanUrl = (url: string): string => {
 };
 
 export const scrapeInstagram = async (inputUrl: string): Promise<MediaData> => {
-    // Validate URL basic pattern
     if (!inputUrl.startsWith('http')) {
         throw new Error("Please enter a valid URL starting with http:// or https://");
     }
@@ -38,10 +37,36 @@ export const scrapeInstagram = async (inputUrl: string): Promise<MediaData> => {
     const url = cleanUrl(inputUrl);
     console.log(`Processing URL: ${url}`);
 
-    // STRATEGY 1: Try local PHP Proxy (Hostinger / Server way)
-    // This bypasses browser CORS header issues by doing the request server-side
+    // STRATEGY 1: Local Dev Proxy (Vite)
+    // Works on Localhost (npm run dev) because we configured vite.config.ts to proxy /api/cobalt -> real cobalt
     try {
-        console.log("Strategy 1: Trying PHP Proxy...");
+        console.log("Strategy 1: Trying Local Vite Proxy (/api/cobalt)...");
+        const response = await fetch('/api/cobalt/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ url })
+        });
+
+        // If 404, it means we are not on localhost/vite, so skip
+        if (response.status !== 404) {
+            const data = await response.json();
+            if (!data.error && (data.url || data.picker || data.status === 'stream')) {
+                console.log("Success via Vite Proxy!");
+                return transformCobaltResponse(data, inputUrl);
+            }
+        }
+    } catch (e) {
+        // Expected to fail on Production/Hostinger (no vite proxy)
+        console.log("Vite Proxy skipped.");
+    }
+
+    // STRATEGY 2: Production PHP Proxy (Hostinger)
+    // Works on Hostinger because api.php acts as the server-side proxy
+    try {
+        console.log("Strategy 2: Trying PHP Proxy (/api.php)...");
         const response = await fetch('/api.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -51,77 +76,41 @@ export const scrapeInstagram = async (inputUrl: string): Promise<MediaData> => {
         const contentType = response.headers.get("content-type");
         if (response.ok && contentType && contentType.includes("application/json")) {
             const data = await response.json();
-            if (!data.error && (data.url || data.picker)) {
+            if (!data.error && (data.url || data.picker || data.status === 'stream')) {
+                console.log("Success via PHP Proxy!");
                 return transformCobaltResponse(data, inputUrl);
             }
         }
     } catch (e) {
-        console.warn("Strategy 1 (PHP Proxy) failed/skipped (Expected on Localhost).");
+        console.warn("PHP Proxy failed (Expected on Localhost without PHP).");
     }
 
-    // STRATEGY 2 & 3: Direct Cobalt & CORS Proxy
+    // STRATEGY 3: Direct Fallback (Rarely works due to CORS, but worth a try with specific instances)
     let lastError = null;
-
-    // Try each instance until one works
     for (const base of COBALT_INSTANCES) {
-        // We try both Direct (Strategy 2) and via CORS Proxy (Strategy 3)
-        // Direct might work if the instance allows CORS.
-        // CORS Proxy (corsproxy.io) works on Localhost effectively.
+        try {
+            console.log(`Strategy 3: Direct -> ${base}`);
+            const response = await fetch(`${base}/`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url })
+            });
 
-        const endpoints = [`${base}/`, `${base}/api/json`];
-
-        for (const endpoint of endpoints) {
-
-            // Sub-Strategy 2: Direct
-            try {
-                console.log(`Strategy 2: Direct -> ${endpoint}`);
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (!data.error) return transformCobaltResponse(data, inputUrl);
-                }
-            } catch (e) {
-                // Ignore direct failure
+            if (response.ok) {
+                const data = await response.json();
+                if (!data.error) return transformCobaltResponse(data, inputUrl);
             }
-
-            // Sub-Strategy 3: Via Public CORS Proxy (Fixes Localhost issue!)
-            try {
-                const corsProxy = "https://corsproxy.io/?";
-                const proxiedUrl = corsProxy + encodeURIComponent(endpoint);
-                console.log(`Strategy 3: Via CORS Proxy -> ${proxiedUrl}`);
-
-                const response = await fetch(proxiedUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (!data.error && (data.status === 'stream' || data.status === 'picker' || data.url)) {
-                        console.log("Success via CORS Proxy!");
-                        return transformCobaltResponse(data, inputUrl);
-                    }
-                }
-            } catch (e: any) {
-                lastError = e;
-                console.warn(`CORS Proxy failed for ${endpoint}:`, e.message);
-            }
+        } catch (e: any) {
+            lastError = e;
         }
     }
 
-    // Final Fallback: If everything fails, throw strict error
+    // We removed CORS Proxy because public ones are unreliable/blocked.
+    // relying on Vite Proxy (Local) + PHP Proxy (Prod) covers all bases.
+
     throw new Error("Unable to process this video. The server might be busy or the content is private/region-locked.");
 };
 
