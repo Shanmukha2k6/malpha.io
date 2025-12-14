@@ -1,7 +1,13 @@
 import { MediaData, MediaType } from "../types";
 
-// Public instance of Cobalt API (allows CORS)
-const COBALT_API_URL = "https://api.cobalt.tools/api/json";
+// List of Community Cobalt Instances (Fallback Strategy)
+const COBALT_INSTANCES = [
+    "https://cobalt.kwiatekmiki.pl",
+    "https://api.cobalt.kwiatekmiki.pl",
+    "https://cobalt.wuk.sh",
+    "https://co.wuk.sh",
+    "https://dl.khub.ky"
+];
 
 export const scrapeInstagram = async (url: string): Promise<MediaData> => {
     // Validate URL basic pattern
@@ -9,45 +15,50 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
         throw new Error("Please enter a valid URL starting with http:// or https://");
     }
 
-    // Allowed domains validation
-    const allowedDomains = [
-        "instagram.com", "instagr.am",
-        "facebook.com", "fb.watch", "fb.com"
-    ];
-
-    // Check if URL matches any allowed domain
-    const isAllowed = allowedDomains.some(domain => url.toLowerCase().includes(domain));
-
-    if (!isAllowed) {
+    const allowedDomains = ["instagram.com", "instagr.am", "facebook.com", "fb.watch", "fb.com"];
+    if (!allowedDomains.some(domain => url.toLowerCase().includes(domain))) {
         throw new Error("Only Instagram and Facebook URLs are supported.");
     }
 
-    try {
-        console.log(`Fetching from Cobalt API: ${COBALT_API_URL}`);
+    let lastError = null;
 
-        const response = await fetch(COBALT_API_URL, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                url: url
-            })
-        });
+    // Try each instance until one works
+    for (const base of COBALT_INSTANCES) {
+        try {
+            console.log(`Trying Cobalt instance: ${base}`);
 
-        const data = await response.json();
+            // Try v10 endpoint (root)
+            const response = await fetch(`${base}/`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: url })
+            });
 
-        if (data.status === 'error' || data.error) {
-            throw new Error(data.text || "Extraction failed. The link might be private or invalid.");
+            const data = await response.json();
+
+            if (data.status === 'error' || data.error) {
+                // If it's a specific error from the API (e.g. valid JSON but error status), record it
+                // but don't stop unless we want to? Usually we should try next instance if it's a server error.
+                // If it's a content error (private video), all instances will likely fail. 
+                // But let's assume it might be instance-specific (blocked IP).
+                throw new Error(data.text || "Extraction failed");
+            }
+
+            // If we got here, success!
+            return transformCobaltResponse(data, url);
+
+        } catch (e: any) {
+            console.warn(`Instance ${base} failed:`, e.message);
+            lastError = e;
+            // Continue to next instance
         }
-
-        return transformCobaltResponse(data, url);
-
-    } catch (e: any) {
-        console.error("External scraping failed:", e);
-        throw new Error(e.message || "Failed to fetch video. Please try again later.");
     }
+
+    // If all failed
+    throw new Error(lastError?.message || "Failed to fetch media. All servers are busy or the link is private.");
 };
 
 const transformCobaltResponse = (data: any, originalUrl: string): MediaData => {
