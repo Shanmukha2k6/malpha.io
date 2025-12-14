@@ -2,7 +2,6 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import InstagramDownloader from './pages/InstagramDownloader';
 import FacebookDownloader from './pages/FacebookDownloader';
-import PinterestDownloader from './pages/PinterestDownloader';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 
@@ -27,7 +26,7 @@ const App: React.FC = () => {
         {/* Specific Platform Routes */}
         <Route path="/instagram-downloader" element={<InstagramDownloader />} />
         <Route path="/facebook-downloader" element={<FacebookDownloader />} />
-        <Route path="/pinterest-downloader" element={<PinterestDownloader />} />
+        <Route path="/facebook-downloader" element={<FacebookDownloader />} />
 
         {/* Static Pages */}
         <Route path="/terms-of-use" element={<Terms />} />

@@ -81,8 +81,7 @@ def sanitize_url(url: str) -> str:
     # Allowed domains check
     allowed_domains = [
         "instagram.com", "instagr.am",
-        "facebook.com", "fb.watch", "fb.com",
-        "pinterest.com", "pin.it"
+        "facebook.com", "fb.watch", "fb.com"
     ]
     
     # Simple domain check
@@ -93,7 +92,7 @@ def sanitize_url(url: str) -> str:
             break
             
     if not domain_match:
-        raise ValueError("Only Instagram, Facebook, and Pinterest URLs are supported.")
+        raise ValueError("Only Instagram and Facebook URLs are supported.")
     
     return url.strip()
 
@@ -422,7 +421,7 @@ async def extract_video(
     Extract video information and download links
     
     Args:
-        url: Video URL (Instagram, Facebook, Pinterest etc.)
+        url: Video URL (Instagram, Facebook)
         
     Returns:
         JSON response with video info and download links

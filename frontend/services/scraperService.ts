@@ -11,15 +11,14 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
     // Allowed domains validation
     const allowedDomains = [
         "instagram.com", "instagr.am",
-        "facebook.com", "fb.watch", "fb.com",
-        "pinterest.com", "pin.it"
+        "facebook.com", "fb.watch", "fb.com"
     ];
 
     // Check if URL matches any allowed domain
     const isAllowed = allowedDomains.some(domain => url.toLowerCase().includes(domain));
 
     if (!isAllowed) {
-        throw new Error("Only Instagram, Facebook, and Pinterest URLs are supported.");
+        throw new Error("Only Instagram and Facebook URLs are supported.");
     }
 
     // Determine endpoint based on URL

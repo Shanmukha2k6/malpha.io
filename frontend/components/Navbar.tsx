@@ -19,7 +19,6 @@ const Navbar: React.FC = () => {
       <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
         <Link to="/instagram-downloader" className="hover:text-insta-mid transition-colors">Instagram Downloader</Link>
         <Link to="/facebook-downloader" className="hover:text-insta-mid transition-colors">Facebook Downloader</Link>
-        <Link to="/pinterest-downloader" className="hover:text-insta-mid transition-colors">Pinterest Downloader</Link>
       </div>
     </nav>
   );
