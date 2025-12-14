@@ -82,7 +82,6 @@ def sanitize_url(url: str) -> str:
     allowed_domains = [
         "instagram.com", "instagr.am",
         "facebook.com", "fb.watch", "fb.com",
-        "tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
         "pinterest.com", "pin.it"
     ]
     
@@ -94,7 +93,7 @@ def sanitize_url(url: str) -> str:
             break
             
     if not domain_match:
-        raise ValueError("Only Instagram, Facebook, TikTok, and Pinterest URLs are supported.")
+        raise ValueError("Only Instagram, Facebook, and Pinterest URLs are supported.")
     
     return url.strip()
 
@@ -401,20 +400,7 @@ async def extract_video_info(url: str) -> Dict[str, Any]:
         
         raise Exception("All extraction methods failed")
 
-    # TikTok handling
-    if "tiktok.com" in url:
-        logger.info(f"Detected TikTok URL: {url}")
-        try:
-            from tiktok_scraper import scrape_tiktok_video_async
-            # Try new hybrid scraper (SSSTik + TikWM)
-            result = await scrape_tiktok_video_async(url)
-            if result and result.get('status') == 'success':
-                logger.info("TikTok scraping successful")
-                return result
-        except Exception as e:
-            logger.warning(f"TikTok scraper failed: {e}, falling back to yt-dlp")
-            
-    # Non-Instagram/Facebook/TikTok URLs (or fallback)
+    # Non-Instagram/Facebook URLs
     return await _extract_with_ytdlp(url)
 
 
@@ -436,7 +422,7 @@ async def extract_video(
     Extract video information and download links
     
     Args:
-        url: Video URL (YouTube, Instagram, TikTok, etc.)
+        url: Video URL (Instagram, Facebook, Pinterest etc.)
         
     Returns:
         JSON response with video info and download links
@@ -509,50 +495,6 @@ async def extract_video_post(
     
     return await extract_video(url=url)
 
-
-@app.get("/api/tiktok")
-async def extract_tiktok(
-    url: str = Query(..., description="TikTok video URL")
-) -> JSONResponse:
-    """
-    Extract TikTok video using yt-dlp
-    
-    Args:
-        url: TikTok video URL
-        
-    Returns:
-        JSON response with TikTok video download link
-    """
-    try:
-        # Try TikWM API scraper first
-        try:
-            logger.info("Trying TikWM API for TikTok")
-            from tiktok_scraper import scrape_tiktok_video_async
-            result = await scrape_tiktok_video_async(url)
-            if result and result.get('status') == 'success':
-                logger.info("TikTok scraping successful")
-                return JSONResponse(content=result)
-        except Exception as e:
-            logger.warning(f"TikWM scraper failed: {e}, trying yt-dlp")
-        
-        # Fallback to yt-dlp
-        result = await _extract_with_ytdlp(url)
-        
-        if result and result.get('status') == 'success':
-            return JSONResponse(content=result)
-        else:
-            raise Exception("All TikTok extraction methods failed")
-            
-    except Exception as e:
-        logger.error(f"TikTok extraction failed: {str(e)}")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "status": "error",
-                "message": "TikTok extraction failed",
-                "details": "Unable to extract TikTok video. The video may be private or deleted."
-            }
-        )
 
 
 @app.get("/api/instagram-profile")
@@ -630,11 +572,6 @@ def download_file(url: str, filename: str = "download", inline: bool = False):
         }
         
         # TikTok/SSSTik specific headers
-        # cover both tikcdn.io and any other potential cdn domains like tiktokcdn.com if needed
-        if 'tikcdn.io' in url or 'tiktokcdn' in url or 'ttcdn' in url:
-            headers['Referer'] = 'https://ssstik.io/en'
-            headers['Origin'] = 'https://ssstik.io'
-            
         r = requests.get(url, stream=True, timeout=120, headers=headers)
         r.raise_for_status()
         
