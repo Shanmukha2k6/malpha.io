@@ -21,6 +21,28 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
         throw new Error("Only Instagram and Facebook URLs are supported.");
     }
 
+    // STRATEGY 1: Try local PHP Proxy (Hostinger / Server way)
+    // This bypasses browser CORS header issues by doing the request server-side
+    try {
+        console.log("Strategy 1: Trying PHP Proxy...");
+        const response = await fetch('/api.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+
+        const contentType = response.headers.get("content-type");
+        if (response.ok && contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+            if (!data.error && (data.url || data.picker)) {
+                return transformCobaltResponse(data, url);
+            }
+        }
+    } catch (e) {
+        console.warn("PHP Proxy failed (might be running locally without PHP):", e);
+    }
+
+    // STRATEGY 2: Direct Client-Side Request (Fallback if PHP is invalid)
     let lastError = null;
 
     // Try each instance until one works
@@ -30,7 +52,7 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
 
         for (const endpoint of endpoints) {
             try {
-                console.log(`Trying Cobalt: ${endpoint}`);
+                console.log(`Strategy 2: Trying Direct Cobalt: ${endpoint}`);
 
                 const response = await fetch(endpoint, {
                     method: 'POST',
@@ -65,7 +87,7 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
     }
 
     // If all failed
-    throw new Error("Failed to fetch media. Please try again later. (All servers busy)");
+    throw new Error("Failed to fetch media. All servers are busy or the link is private.");
 };
 
 const transformCobaltResponse = (data: any, originalUrl: string): MediaData => {
