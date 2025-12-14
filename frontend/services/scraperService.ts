@@ -10,16 +10,33 @@ const COBALT_INSTANCES = [
     "https://api.server.cobalt.tools"
 ];
 
-export const scrapeInstagram = async (url: string): Promise<MediaData> => {
+// Helper to clean URL (remove tracking params)
+const cleanUrl = (url: string): string => {
+    try {
+        const u = new URL(url);
+        // Keep only path, remove query params for cleaner processing
+        // But some reels need 'igsh', usually they don't. 
+        // Let's just strip known tracking params if needed, or better, keep it simple.
+        // Actually, Cobalt usually prefers clean URLs.
+        return `${u.protocol}//${u.hostname}${u.pathname}`;
+    } catch {
+        return url;
+    }
+};
+
+export const scrapeInstagram = async (inputUrl: string): Promise<MediaData> => {
     // Validate URL basic pattern
-    if (!url.startsWith('http')) {
+    if (!inputUrl.startsWith('http')) {
         throw new Error("Please enter a valid URL starting with http:// or https://");
     }
 
     const allowedDomains = ["instagram.com", "instagr.am", "facebook.com", "fb.watch", "fb.com"];
-    if (!allowedDomains.some(domain => url.toLowerCase().includes(domain))) {
+    if (!allowedDomains.some(domain => inputUrl.toLowerCase().includes(domain))) {
         throw new Error("Only Instagram and Facebook URLs are supported.");
     }
+
+    const url = cleanUrl(inputUrl);
+    console.log(`Processing URL: ${url}`);
 
     // STRATEGY 1: Try local PHP Proxy (Hostinger / Server way)
     // This bypasses browser CORS header issues by doing the request server-side
@@ -35,59 +52,77 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
         if (response.ok && contentType && contentType.includes("application/json")) {
             const data = await response.json();
             if (!data.error && (data.url || data.picker)) {
-                return transformCobaltResponse(data, url);
+                return transformCobaltResponse(data, inputUrl);
             }
         }
     } catch (e) {
-        console.warn("Strategy 1 (PHP Proxy) failed. Note: This is EXPECTED on localhost if you don't have PHP installed. It will work on Hostinger. Falling back to direct requests...", e);
+        console.warn("Strategy 1 (PHP Proxy) failed/skipped (Expected on Localhost).");
     }
 
-    // STRATEGY 2: Direct Client-Side Request (Fallback if PHP is invalid)
+    // STRATEGY 2 & 3: Direct Cobalt & CORS Proxy
     let lastError = null;
 
     // Try each instance until one works
     for (const base of COBALT_INSTANCES) {
-        // For each instance, try both v10 (root) and v7 (/api/json) endpoints
+        // We try both Direct (Strategy 2) and via CORS Proxy (Strategy 3)
+        // Direct might work if the instance allows CORS.
+        // CORS Proxy (corsproxy.io) works on Localhost effectively.
+
         const endpoints = [`${base}/`, `${base}/api/json`];
 
         for (const endpoint of endpoints) {
-            try {
-                console.log(`Strategy 2: Trying Direct Cobalt: ${endpoint}`);
 
+            // Sub-Strategy 2: Direct
+            try {
+                console.log(`Strategy 2: Direct -> ${endpoint}`);
                 const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: url })
+                    body: JSON.stringify({ url })
                 });
 
-                // Check content type to ensure it's JSON
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    continue; // Skip non-JSON responses (404 pages etc)
+                if (response.ok) {
+                    const data = await response.json();
+                    if (!data.error) return transformCobaltResponse(data, inputUrl);
                 }
+            } catch (e) {
+                // Ignore direct failure
+            }
 
-                const data = await response.json();
+            // Sub-Strategy 3: Via Public CORS Proxy (Fixes Localhost issue!)
+            try {
+                const corsProxy = "https://corsproxy.io/?";
+                const proxiedUrl = corsProxy + encodeURIComponent(endpoint);
+                console.log(`Strategy 3: Via CORS Proxy -> ${proxiedUrl}`);
 
-                if (data.status === 'error' || data.error) {
-                    throw new Error(data.text || "Extraction failed");
+                const response = await fetch(proxiedUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (!data.error && (data.status === 'stream' || data.status === 'picker' || data.url)) {
+                        console.log("Success via CORS Proxy!");
+                        return transformCobaltResponse(data, inputUrl);
+                    }
                 }
-
-                // If we got here, success!
-                return transformCobaltResponse(data, url);
-
             } catch (e: any) {
-                // console.warn(`Endpoint ${endpoint} failed:`, e.message);
                 lastError = e;
-                // Continue to next endpoint/instance
+                console.warn(`CORS Proxy failed for ${endpoint}:`, e.message);
             }
         }
     }
 
-    // If all failed
-    throw new Error("Failed to fetch media. All servers are busy or the link is private.");
+    // Final Fallback: If everything fails, throw strict error
+    throw new Error("Unable to process this video. The server might be busy or the content is private/region-locked.");
 };
 
 const transformCobaltResponse = (data: any, originalUrl: string): MediaData => {
