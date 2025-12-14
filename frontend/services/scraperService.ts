@@ -39,7 +39,7 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
             }
         }
     } catch (e) {
-        console.warn("PHP Proxy failed (might be running locally without PHP):", e);
+        console.warn("Strategy 1 (PHP Proxy) failed. Note: This is EXPECTED on localhost if you don't have PHP installed. It will work on Hostinger. Falling back to direct requests...", e);
     }
 
     // STRATEGY 2: Direct Client-Side Request (Fallback if PHP is invalid)
