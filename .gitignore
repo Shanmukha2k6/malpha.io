@@ -60,3 +60,15 @@ yarn.lock
 # OS
 Thumbs.db
 .DS_Store
+
+# Cookies and sensitive data
+cookies.txt
+backend/cookies.txt
+
+# Debug files
+backend/debug_*.py
+backend/test_*.py
+backend/*_debug*.txt
+backend/*_output*.txt
+backend/fb_*.html
+backend/fb_*.json

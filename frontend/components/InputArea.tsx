@@ -26,6 +26,32 @@ const InputArea: React.FC<InputAreaProps> = ({
   const [pasteMessage, setPasteMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  // Simulated progress effect
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (loading) {
+      setProgress(10); // Start
+
+      // Step 1: Jump to 50% quickly
+      const t1 = setTimeout(() => setProgress(50), 500);
+
+      // Step 2: Jump to 75%
+      const t2 = setTimeout(() => setProgress(75), 1500);
+
+      // Step 3: Jump to 90% (stall here)
+      const t3 = setTimeout(() => setProgress(90), 2500);
+
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    } else {
+      setProgress(100);
+    }
+  }, [loading]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +160,20 @@ const InputArea: React.FC<InputAreaProps> = ({
           </div>
         </div>
       </form>
+
+      {/* Progress Bar when loading */}
+      <div className={`w-full max-w-2xl mt-6 transition-all duration-500 overflow-hidden ${loading ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0'}`}>
+        <div className="flex justify-between text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider px-1">
+          <span>Looking up media...</span>
+          <span className="text-slate-700">{progress}%</span>
+        </div>
+        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+          <div
+            className={`h-full ${gradientButton} transition-all duration-300 ease-out rounded-full shadow-sm`}
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      </div>
 
       {/* Helper message for manual paste */}
       <div className={`mt-3 h-6 text-center transition-all duration-300 ${pasteMessage ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>

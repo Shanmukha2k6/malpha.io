@@ -1,71 +1,61 @@
-# Deploying to Hostinger
 
-Since you have **Hostinger Premium Web Hosting**, you have a specific setup.
+# 🚀 How to Host on Hostinger (Frontend) + Render (Backend)
 
-## 🛑 Important Restriction
-Hostinger **Premium Web Hosting** (Shared Hosting) is designed for **PHP/Static** sites. It does **NOT** easily support long-running Python servers (like your backend) because you cannot run a persistent process (like `uvicorn`) or bind to custom ports.
-
-**The Solution:** Use a **Hybrid Approach**.
-1.  **Frontend:** Host on **Hostinger** (It's fast and uses your domain).
-2.  **Backend:** Host on **Render** (Free) or a separate **Hostinger VPS** (if you want to pay for a VPS).
+Since you have **Hostinger**, we will host your React Frontend there.
+However, because your Backend requires **FFmpeg** and **Python**, it generally cannot run on standard Hostinger Shared Hosting. We will stick with **Render** for the backend (it's free and better suited for this).
 
 ---
 
-## Part 1: Deploy the Backend (Render)
-*Do this first so you have a backend URL.*
+## 1️⃣ Deploy Backend (Render)
+**Do this first!** You need the backend URL to make the frontend work.
 
-1.  Follow the **Render** steps in the `DEPLOYMENT_GUIDE_FINAL.md`.
-2.  Get your backend URL (e.g., `https://instasaver-backend.onrender.com`).
-3.  **Note:** This is free and easiest. If you really want it on Hostinger, you must upgrade to a **VPS Plan** (Standard Web Hosting won't work).
+1.  **Push Code to GitHub** (See Step 3 below if not done).
+2.  Go to [render.com](https://render.com/).
+3.  Create **New Web Service** -> Connect your Repo.
+4.  **Root Directory**: `backend`
+5.  **Runtime**: Docker
+6.  **Deploy**.
+7.  **Copy the URL** (e.g., `https://malpha-backend.onrender.com`).
 
 ---
 
-## Part 2: Deploy the Frontend (Hostinger)
+## 2️⃣ Deploy Frontend (Hostinger)
 
-### 1. Prepare for Production
-1.  Open your project in VS Code.
-2.  Open `frontend/.env.local` (create it if missing).
-3.  Add your Backend URL:
-    ```
-    VITE_API_URL=https://instasaver-backend.onrender.com
-    ```
-    *(Replace with your actual Render URL)*
+1.  **Update Configuration**:
+    *   Open `frontend/.env` (create it if missing).
+    *   Add: `VITE_API_URL=https://malpha-backend.onrender.com` (Replace with your actual Render URL).
 
-### 2. Build the Project
-1.  Open terminal in VS Code:
-    ```powershell
-    cd frontend
-    npm run build
-    ```
-2.  This generates a `dist` folder in `frontend/dist`. These are your production files.
+2.  **Build the Project**:
+    *   Open terminal in `frontend` folder.
+    *   Run: `npm run build`
+    *   This creates a `dist` folder with your website files.
 
-### 3. Upload to Hostinger
-1.  Log in to your **Hostinger hPanel**.
-2.  Go to **File Manager**.
-3.  Navigate to `public_html`.
-    *   *If you want it on a subdomain (e.g., `app.domain.com`), navigate there.*
-4.  **Delete** the default `default.php` if present.
-5.  **Upload** all files from your local `frontend/dist` folder to `public_html`.
-    *   You should see `index.html` and an `assets` folder in `public_html`.
+3.  **Upload to Hostinger**:
+    *   Log in to **Hostinger hPanel**.
+    *   Go to **File Manager** -> `public_html`.
+    *   **Delete default files** (like default.php).
+    *   **Upload contents of `dist` folder**:
+        *   Take all files *inside* `frontend/dist` (`index.html`, `assets` folder, `.htaccess`, etc.) and drag them into `public_html`.
+    *   **Important**: Ensure `.htaccess` is uploaded! (I created this for you in `public/` so it should be in `dist/` after build). This makes pages like `/instagram-downloader` work when refreshed.
 
-### 4. Fix Routing (Critical for React)
-Since this is a Single Page App (SPA), refreshing the page on sub-pages (like `/instagram-downloader`) will give a 404 error unless you fix it.
+---
 
-1.  In Hostinger File Manager (`public_html`), create a new file named `.htaccess`.
-2.  Paste this code inside:
+## 3️⃣ Push to GitHub
 
-    ```apache
-    <IfModule mod_rewrite.c>
-      RewriteEngine On
-      RewriteBase /
-      RewriteRule ^index\.html$ - [L]
-      RewriteCond %{REQUEST_FILENAME} !-f
-      RewriteCond %{REQUEST_FILENAME} !-d
-      RewriteCond %{REQUEST_FILENAME} !-l
-      RewriteRule . /index.html [L]
-    </IfModule>
-    ```
-3.  Save the file.
+Run these commands in your project root to save everything to your repository:
 
-### 5. Done!
-Visit your domain. Your frontend is served by Hostinger, and it quietly talks to the secure backend on Render.
+```bash
+git init
+git add .
+git commit -m "Ready for deployment"
+git branch -M main
+git remote add origin https://github.com/Shanmukha2k6/malpha.io.git
+git push -u origin main
+```
+
+---
+
+## 🔍 Troubleshooting Hostinger
+*   **404 on Refresh**: If you go to a page and refresh and get a 404, it means the `.htaccess` file is missing. Check Step 2.
+*   **Backend Error**: If the download doesn't start, check the Console (F12). If it says "Connection Refused", your Backend URL in `.env` might be wrong or the backend is sleeping (give it 1 minute to wake up).
+

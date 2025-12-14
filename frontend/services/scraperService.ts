@@ -8,6 +8,21 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
         throw new Error("Please enter a valid URL starting with http:// or https://");
     }
 
+    // Allowed domains validation
+    const allowedDomains = [
+        "instagram.com", "instagr.am",
+        "facebook.com", "fb.watch", "fb.com",
+        "tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
+        "pinterest.com", "pin.it"
+    ];
+
+    // Check if URL matches any allowed domain
+    const isAllowed = allowedDomains.some(domain => url.toLowerCase().includes(domain));
+
+    if (!isAllowed) {
+        throw new Error("Only Instagram, Facebook, TikTok, and Pinterest URLs are supported.");
+    }
+
     // Determine endpoint based on URL
     let endpoint = `${API_BASE_URL}/api/extract`;
     let isProfile = false;
@@ -23,12 +38,30 @@ export const scrapeInstagram = async (url: string): Promise<MediaData> => {
         }
     }
 
-    // Smart routing for Facebook Profiles
-    if (url.includes('facebook.com') && !url.includes('/watch') && !url.includes('/video')) {
-        // Basic check, might need refinement
-        if (!url.includes('/groups/') && !url.includes('/story.php')) {
-            endpoint = `${API_BASE_URL}/api/facebook-profile?url=${encodeURIComponent(url)}`;
-            isProfile = true;
+    // Smart routing for Facebook Profiles vs Content
+    if (url.includes('facebook.com')) {
+        // These are content URLs that should use /api/extract
+        const isContent = url.includes('/watch') ||
+            url.includes('/video') ||
+            url.includes('/reel') ||
+            url.includes('/share/') ||
+            url.includes('/photo') ||
+            url.includes('/posts/') ||
+            url.includes('/permalink.php') ||
+            url.includes('fbid=') ||
+            url.includes('/groups/') ||
+            url.includes('/story.php');
+
+        // If it's NOT content and looks like a simple profile URL, use profile endpoint
+        if (!isContent) {
+            const urlObj = new URL(url);
+            const pathParts = urlObj.pathname.split('/').filter(p => p);
+
+            // Simple profile URL like facebook.com/username
+            if (pathParts.length === 1 || url.includes('profile.php')) {
+                endpoint = `${API_BASE_URL}/api/facebook-profile?url=${encodeURIComponent(url)}`;
+                isProfile = true;
+            }
         }
     }
 
@@ -74,18 +107,61 @@ const transformBackendResponse = (data: any, originalUrl: string, isProfile: boo
 
     // Handle Video/Post Response
     let mediaType = MediaType.REEL; // Default (Video/Reel)
-    // Determine type from formats or URL
+
+    // Determine type from formats - check if we have video formats
     if (data.formats && data.formats.length > 0) {
-        if (data.formats[0].ext === 'jpg' || data.formats[0].ext === 'png') {
+        const firstFormat = data.formats[0];
+        const ext = firstFormat.ext?.toLowerCase() || '';
+        const vcodec = firstFormat.vcodec;
+
+        console.log('[DEBUG] First format:', { ext, vcodec, format: firstFormat });
+
+        // SIMPLE RULE: If ext is mp4/webm/mov, it's a video
+        if (ext === 'mp4' || ext === 'webm' || ext === 'mov' || ext === 'm4v') {
+            mediaType = MediaType.REEL;
+            console.log('[DEBUG] Detected as REEL (video ext:', ext, ')');
+        }
+        // Only set to IMAGE if explicitly jpg/png/etc
+        else if (ext === 'jpg' || ext === 'png' || ext === 'jpeg' || ext === 'webp') {
             mediaType = MediaType.IMAGE;
+            console.log('[DEBUG] Detected as IMAGE');
+        }
+        // Fallback: check vcodec
+        else if (vcodec && vcodec !== 'none') {
+            mediaType = MediaType.REEL;
+            console.log('[DEBUG] Detected as REEL (vcodec)');
         }
     }
 
+    console.log('[DEBUG] Final mediaType:', mediaType);
+
+    // Check if this is a carousel (multiple distinct items) vs single video with quality options
+    const isCarousel = data.is_carousel === true ||
+        (data.formats && data.formats.length > 1 &&
+            (data.formats[0]?.format_id?.includes('slide_') ||
+                data.formats[0]?.format_id?.includes('story_')));
+
+    console.log('[DEBUG] Is Carousel:', isCarousel, 'formats count:', data.formats?.length);
+
     // Map formats to sources
-    const sources = (data.formats || []).map((fmt: any) => ({
-        uri: fmt.url,
-        title: fmt.quality || fmt.format_id || "Download"
-    }));
+    let sources: Array<{ uri: string, title: string }> = [];
+
+    if (isCarousel) {
+        // For carousels, include all formats (different items)
+        sources = (data.formats || []).map((fmt: any) => ({
+            uri: fmt.url,
+            title: fmt.quality || fmt.format_id || "Download"
+        }));
+    } else {
+        // For single videos (like reels), only use the best format
+        // This prevents duplicates from appearing in the UI
+        if (data.formats && data.formats.length > 0) {
+            sources = [{
+                uri: data.formats[0].url,
+                title: data.formats[0].quality || "Best Quality"
+            }];
+        }
+    }
 
     // Find best download URL (first one is usually best due to backend sorting)
     const bestUrl = sources.length > 0 ? sources[0].uri : "";

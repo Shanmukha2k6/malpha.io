@@ -13,7 +13,7 @@ const Navbar: React.FC = () => {
           </div>
         </div>
         <span className="text-xl font-black tracking-tighter text-slate-900">
-          Insta<span className="text-transparent bg-clip-text bg-insta-gradient">Saver</span>
+          Malpha<span className="text-transparent bg-clip-text bg-insta-gradient">.io</span>
         </span>
       </Link>
       <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">

@@ -6,27 +6,50 @@ interface ResultCardProps {
     data: MediaData;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 const ResultCard: React.FC<ResultCardProps> = ({ data }) => {
 
-    const handleDownload = (mediaUrlOverride?: string, index?: number) => {
-        let ext = 'jpg';
-        let targetUrl = mediaUrlOverride || data.mediaUrl;
+    const [downloading, setDownloading] = React.useState<Record<number, boolean>>({});
 
-        if (targetUrl.includes('.mp4')) ext = 'mp4';
-        else if (data.type === MediaType.REEL) ext = 'mp4';
-        else if (data.type === MediaType.AUDIO) ext = 'mp3';
+    const handleDownload = async (mediaUrlOverride?: string, index: number = 0) => {
+        try {
+            setDownloading(prev => ({ ...prev, [index]: true }));
 
-        const suffix = index !== undefined ? `_${index + 1}` : '';
-        const filename = `instasaver_${data.username}_${data.id}${suffix}.${ext}`;
+            let ext = 'jpg';
+            let targetUrl = mediaUrlOverride || data.mediaUrl;
 
-        const downloadUrl = `http://localhost:8000/api/download?url=${encodeURIComponent(targetUrl)}&filename=${encodeURIComponent(filename)}`;
+            // Determine extension
+            if (targetUrl.includes('.mp4')) ext = 'mp4';
+            else if (data.type === MediaType.REEL) ext = 'mp4';
+            else if (data.type === MediaType.AUDIO) ext = 'mp3';
 
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+            const suffix = index !== undefined ? `_${index + 1}` : '';
+            const filename = `malpha_${data.username || 'user'}_${data.id || Date.now()}${suffix}.${ext}`;
+
+            // Generate proxy URL
+            const downloadUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(targetUrl)}&filename=${encodeURIComponent(filename)}`;
+
+            // Use fetch to get the blob (handles errors better)
+            const response = await fetch(downloadUrl);
+            if (!response.ok) throw new Error('Download failed');
+
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            console.error('Download error:', error);
+            alert('Download failed. Please try again.');
+        } finally {
+            setDownloading(prev => ({ ...prev, [index]: false }));
+        }
     };
 
     const getIcon = (type?: MediaType) => {
@@ -43,8 +66,19 @@ const ResultCard: React.FC<ResultCardProps> = ({ data }) => {
     const isCarousel = sources.length > 1;
 
     const renderMediaItem = (url: string, index: number) => {
-        const isItemVideo = url.includes('.mp4') || data.type === MediaType.REEL;
-        const proxyUrl = `http://localhost:8000/api/download?url=${encodeURIComponent(url)}&inline=true`;
+        // IMPROVED TYPE DETECTION
+        // Check extension in URL (ignoring query params)
+        const cleanUrl = url.split('?')[0].toLowerCase();
+        const hasVideoExt = cleanUrl.endsWith('.mp4') || cleanUrl.endsWith('.webm') || cleanUrl.endsWith('.mov');
+
+        // Check if data type explicitly says REEL or VIDEO
+        // Also check if the source title explicitly says "Video" (set by backend)
+        const isItemVideo = hasVideoExt ||
+            data.type === MediaType.REEL ||
+            data.type === 'VIDEO' ||
+            (data.sources && data.sources[index]?.title && data.sources[index].title.toLowerCase().includes('video'));
+
+        const proxyUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(url)}&inline=true`;
 
         return (
             <div key={index} className="flex flex-col bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md hover:shadow-xl transition-all duration-300 w-fit mx-auto max-w-full min-w-[320px]">
@@ -86,10 +120,11 @@ const ResultCard: React.FC<ResultCardProps> = ({ data }) => {
                 <div className="p-4 bg-white border-t border-slate-100">
                     <button
                         onClick={() => handleDownload(url, index)}
-                        className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-black transition-colors transform active:scale-95 shadow-lg shadow-slate-900/20"
+                        className={`w-full ${downloading[index] ? 'bg-slate-700 cursor-not-allowed' : 'bg-slate-900 hover:bg-black'} text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors transform active:scale-95 shadow-lg shadow-slate-900/20`}
+                        disabled={downloading[index]}
                     >
-                        <DownloadIcon className="w-5 h-5" />
-                        Download {isCarousel ? `Item ${index + 1}` : 'Media'}
+                        <DownloadIcon className={`w-5 h-5 ${downloading[index] ? 'animate-bounce' : ''}`} />
+                        {downloading[index] ? 'Downloading...' : `Download ${isCarousel ? `Item ${index + 1}` : 'Media'}`}
                     </button>
                     {isCarousel && (
                         <p className="text-xs text-center text-slate-400 mt-3 font-medium">

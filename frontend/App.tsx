@@ -12,7 +12,7 @@ const ContactUs = () => (
   <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
     <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
       <h1 className="text-2xl font-bold mb-4">Contact Us</h1>
-      <p className="text-slate-600 mb-6">For any inquiries, please email us at support@instasaver.app</p>
+      <p className="text-slate-600 mb-6">For any inquiries, please email us at support@malpha.io</p>
       <a href="/" className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition">Go Back Home</a>
     </div>
   </div>

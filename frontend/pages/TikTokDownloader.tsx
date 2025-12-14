@@ -72,7 +72,7 @@ const TikTokDownloader: React.FC = () => {
             <div className="fixed bottom-0 left-0 w-full p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 z-20 flex flex-col items-center justify-between gap-3 shadow-lg">
                 <div className="w-full flex flex-col md:flex-row items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
-                        InstaSaver © {new Date().getFullYear()}
+                        Malpha.io © {new Date().getFullYear()}
                     </p>
                     <div className="flex items-center gap-6">
                         <Link
@@ -96,7 +96,7 @@ const TikTokDownloader: React.FC = () => {
                     </div>
                 </div>
                 <p className="text-[10px] text-slate-400 max-w-xl mx-auto text-center leading-tight opacity-70">
-                    Instasaver is not affiliated with TikTok™ and we do not host any media on our servers. All media content is delivered through its original source and belongs to their respective owners.
+                    Malpha.io is not affiliated with TikTok™ and we do not host any media on our servers. All media content is delivered through its original source and belongs to their respective owners.
                 </p>
             </div>
         </div>

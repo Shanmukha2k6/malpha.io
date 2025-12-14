@@ -25,7 +25,7 @@ def get_instagram_profile_picture(username: str) -> dict:
         username = username.replace('@', '').strip()
         
         # Initialize Instaloader
-        L = instaloader.Instaloader()
+        L = _get_instaloader()
         
         # Try to load session from cookies.txt if available
         # Instaloader supports loading from file, but we'll try basic approach first completely anonymous
@@ -76,6 +76,17 @@ def _load_cookies(L: instaloader.Instaloader):
     except Exception as e:
         logger.warning(f"Failed to load cookies: {e}")
 
+# Global instance
+_L = None
+
+def _get_instaloader():
+    """Get or create global Instaloader instance"""
+    global _L
+    if _L is None:
+        _L = instaloader.Instaloader()
+        _load_cookies(_L)
+    return _L
+
 def get_instagram_post(url: str) -> dict:
     """
     Scrape Instagram post (Image, Video, Carousel)
@@ -101,8 +112,8 @@ def get_instagram_post(url: str) -> dict:
         else:
             shortcode = match.group(1)
         
-        L = instaloader.Instaloader()
-        _load_cookies(L)
+        # Use global instance
+        L = _get_instaloader()
         
         post = instaloader.Post.from_shortcode(L.context, shortcode)
         
@@ -153,4 +164,49 @@ def get_instagram_post(url: str) -> dict:
 
     except Exception as e:
         logger.error(f"Instaloader post extraction failed: {str(e)}")
+        raise e
+
+def get_instagram_stories(username: str) -> dict:
+    """
+    Scrape Instagram stories for a user
+    REQUIRES LOGIN/COOKIES
+    """
+    try:
+        L = _get_instaloader()
+        
+        # We need to get the user ID first
+        profile = instaloader.Profile.from_username(L.context, username)
+        
+        # Get stories
+        stories = L.get_stories(userids=[profile.userid])
+        
+        formats = []
+        
+        for story in stories:
+            for item in story:
+                is_video = item.is_video
+                formats.append({
+                    'quality': f"Story ({'Video' if is_video else 'Image'})",
+                    'ext': 'mp4' if is_video else 'jpg',
+                    'url': item.video_url if is_video else item.url,
+                    'format_id': f'story_{item.date_utc.timestamp()}',
+                    'width': item.width,
+                    'height': item.height,
+                    'note': item.date_utc.strftime("%Y-%m-%d %H:%M:%S")
+                })
+        
+        if not formats:
+            raise Exception("No stories found for this user (or not logged in)")
+            
+        return {
+            'status': 'success',
+            'title': f"Stories from {username}",
+            'uploader': username,
+            'thumbnail': profile.profile_pic_url,
+            'duration': 0,
+            'formats': formats
+        }
+        
+    except Exception as e:
+        logger.error(f"Instaloader story extraction failed for {username}: {str(e)}")
         raise e
